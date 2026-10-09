@@ -1,0 +1,105 @@
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import CommandStart
+from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from decouple import config
+
+# ---------- НАСТРОЙКИ ----------
+BOT_TOKEN = config("BOT_TOKEN")
+logging.basicConfig(level=logging.INFO)
+
+# ---------- БОТ ----------
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# ---------- СЛОВАРЬ ЗНАКОВ ----------
+SIGNS = {
+    "aries": "Овен ♈️ ",
+    "taurus": "Телец ♉️ ",
+    "gemini": "Близнецы ♊️ ",
+    "cancer": "Рак ♋️ ",
+    "leo": "Лев ♌️ ",
+    "virgo": "Дева ♍️ ",
+    "libra": "Весы ♎️ ",
+    "scorpio": "Скорпион ♏️ ",
+    "sagittarius": "Стрелец ♐️ ",
+    "capricorn": "Козерог ♑️ ",
+    "aquarius": "Водолей ♒️ ",
+    "pisces": "Рыбы ♓️ ",
+}
+
+
+# ---------- КЛАВИАТУРА СО ЗНАКАМИ ----------
+def get_signs_keyboard():
+    builder = InlineKeyboardBuilder()
+    for key, name in SIGNS.items():
+        builder.button(text=name, callback_data=f"sign_{key}")
+    builder.adjust(2)  # по 2 кнопки в ряд
+    return builder.as_markup()
+
+
+# ---------- СТАРТ ----------
+@dp.message(CommandStart())
+async def start(message: Message):
+    text = (
+        "🔮  Привет!\n\n"
+        "Ты когда-нибудь задумывалась, почему одни ароматы тебя вдохновляют, "
+        "а другие — раздражают?\n\n"
+        "За это отвечает твоя Венера — планета красоты, чувственности и ресурса.\n\n"
+        "Ты готова узнать свой ресурсный аромат? 👇"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Да, хочу узнать! ✨", callback_data="start_test")]
+    ])
+    await message.answer(text, reply_markup=keyboard)
+
+
+# ---------- НАЖАТИЕ "ДА, ХОЧУ УЗНАТЬ" ----------
+@dp.callback_query(F.data == "start_test")
+async def start_test(callback: CallbackQuery):
+    text = (
+        "Отлично! Чтобы узнать свою Венеру, перейди по ссылке:\n"
+        "https://sotis-online.ru/\n\n"
+        "Что нужно сделать:\n"
+        "1. Введи свою дату рождения.\n"
+        "2. Укажи город рождения (время — если знаешь).\n"
+        "3. Нажми «Построить карту».\n\n"
+        "Найди на карте символ Венеры: ♀️ \n"
+        "Посмотри, в каком знаке Зодиака она находится.\n\n"
+        "Когда найдёшь свою Венеру, нажми на кнопку с нужным знаком внизу 👇"
+    )
+    await callback.message.answer(text, reply_markup=get_signs_keyboard())
+    await callback.answer()
+
+
+# ---------- ВЫБОР ЗНАКА ----------
+@dp.callback_query(F.data.startswith("sign_"))
+async def send_file(callback: CallbackQuery):
+    sign_key = callback.data.replace("sign_", "")
+    sign_name = SIGNS.get(sign_key, "знак")
+
+    try:
+        file_path = f"files/venus_{sign_key}.pdf"
+        document = FSInputFile(file_path)
+        await callback.message.answer_document(
+            document,
+            caption=f"🌹  Твоя Венера в знаке {sign_name}\n\n"
+                    f"Держи свой ресурсный аромат! Если захочешь заказать свечу или диффузор — "
+                    f"пиши:\n📱  89617161020\n📸  Instagram: mo_on_color"
+        )
+    except Exception as e:
+        await callback.message.answer("😔  Файл не найден. Напиши нам в поддержку.")
+        logging.error(f"Ошибка отправки файла: {e}")
+
+    await callback.answer()
+
+
+# ---------- ЗАПУСК ----------
+async def main():
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
